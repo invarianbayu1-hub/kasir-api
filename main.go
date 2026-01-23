@@ -15,9 +15,9 @@ type Inventory struct {
 }
 
 var inventory = []Inventory{
-	{ID: 1, Nama: "monitor", Description: "Asus"},
-	{ID: 2, Nama: "mouse", Description: "Rexus"},
-	{ID: 3, Nama: "komputer", Description: "i7 Gen 12"},
+	{ID: 1, Nama: "Handphone xiaomi", Description: "Redmi note 10 pro"},
+	{ID: 2, Nama: "Handphone Iphone", Description: "Iphone 13 pro max"},
+	{ID: 3, Nama: "Handphone Samsung", Description: "Galaxy S21"},
 }
 
 func getInventoryByID(w http.ResponseWriter, r *http.Request) {
