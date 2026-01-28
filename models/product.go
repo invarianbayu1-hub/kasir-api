@@ -2,6 +2,6 @@ package models
 
 type Product struct {
 	ID          int    `json:"id"`
-	Nama        string `json:"nama"`
+	Name        string `json:"name"`
 	Description string `json:"description"`
 }

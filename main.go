@@ -18,14 +18,14 @@ import (
 
 type Inventory struct {
 	ID          int    `json:"id"`
-	Nama        string `json:"nama"`
+	Name        string `json:"name"`
 	Description string `json:"description"`
 }
 
 var inventory = []Inventory{
-	{ID: 1, Nama: "Handphone xiaomi", Description: "Redmi note 10 pro"},
-	{ID: 2, Nama: "Handphone Iphone", Description: "Iphone 13 pro max"},
-	{ID: 3, Nama: "Handphone Samsung", Description: "Galaxy S21"},
+	{ID: 1, Name: "Handphone xiaomi", Description: "Redmi note 10 pro"},
+	{ID: 2, Name: "Handphone Iphone", Description: "Iphone 13 pro max"},
+	{ID: 3, Name: "Handphone Samsung", Description: "Galaxy S21"},
 }
 
 func getInventoryByID(w http.ResponseWriter, r *http.Request) {
