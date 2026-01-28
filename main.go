@@ -3,9 +3,17 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"kasir-api/database"
+	"kasir-api/handlers"
+	"kasir-api/repositories"
+	"kasir-api/services"
+	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
+
+	"github.com/spf13/viper"
 )
 
 type Inventory struct {
@@ -77,8 +85,10 @@ func updateInventory(w http.ResponseWriter, r *http.Request) {
 func deleteInventory(w http.ResponseWriter, r *http.Request) {
 	// get id
 	idStr := strings.TrimPrefix(r.URL.Path, "/api/inventory/")
+
 	// ganti id int
 	id, err := strconv.Atoi(idStr)
+
 	if err != nil {
 		http.Error(w, "Invalid Inventory ID", http.StatusBadRequest)
 		return
@@ -100,18 +110,50 @@ func deleteInventory(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Inventory belum ada", http.StatusNotFound)
 }
 
+// ubah Config
+type Config struct {
+	Port   string `mapstructure:"PORT"`
+	DBConn string `mapstructure:"DB_CONN"`
+}
+
 func main() {
+	viper.AutomaticEnv()
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	if _, err := os.Stat(".env"); err == nil {
+		viper.SetConfigFile(".env")
+		_ = viper.ReadInConfig()
+	}
+
+	config := Config{
+		Port:   viper.GetString("PORT"),
+		DBConn: viper.GetString("DB_CONN"),
+	}
+
+	// Setup database
+	db, err := database.InitDB(config.DBConn)
+	if err != nil {
+		log.Fatal("Failed to initialize database:", err)
+	}
+	defer db.Close()
 
 	// GET localhost:8080/api/inventory/{id}
 	// PUT localhost:8080/api/inventory/{id}
 	// DELETE localhost:8080/api/inventory/{id}
+	productRepo := repositories.NewProductRepository(db)
+	productService := services.NewProductService(productRepo)
+	productHandler := handlers.NewProductHandler(productService)
+
+	http.HandleFunc("/api/produk", productHandler.HandleProducts)
+	http.HandleFunc("/api/produk/", productHandler.HandleProductByID)
+
 	http.HandleFunc("/api/inventory/", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
-		case "GET":
+		case http.MethodGet:
 			getInventoryByID(w, r)
-		case "PUT":
+		case http.MethodPut:
 			updateInventory(w, r)
-		case "DELETE":
+		case http.MethodDelete:
 			deleteInventory(w, r)
 		}
 
@@ -121,27 +163,22 @@ func main() {
 	// POST localhost:8080/api/inventory
 	http.HandleFunc("/api/inventory", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
-		case "GET":
+		case http.MethodGet:
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(inventory)
-		case "POST":
-			// baca data dari request
+		case http.MethodPost:
 			var Inventorybaru Inventory
 			err := json.NewDecoder(r.Body).Decode(&Inventorybaru)
 			if err != nil {
 				http.Error(w, "Invalid request", http.StatusBadRequest)
 				return
 			}
-
-			// masukkin data ke dalam variable inventory
 			Inventorybaru.ID = len(inventory) + 1
 			inventory = append(inventory, Inventorybaru)
-
 			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusCreated) // 201
+			w.WriteHeader(http.StatusCreated)
 			json.NewEncoder(w).Encode(Inventorybaru)
 		}
-
 	})
 
 	// localhost:8080/health
@@ -152,9 +189,10 @@ func main() {
 			"message": "API Running",
 		})
 	})
-	fmt.Println("Server running di localhost:8080")
 
-	err := http.ListenAndServe(":8080", nil)
+	fmt.Println("Server running di localhost:" + config.Port)
+
+	err = http.ListenAndServe(":"+config.Port, nil)
 	if err != nil {
 		fmt.Println("gagal running server")
 	}
