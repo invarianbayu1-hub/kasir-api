@@ -10,10 +10,106 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/viper"
 )
+
+type Inventory struct {
+	ID          int    `json:"id"`
+	Nama        string `json:"nama"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+var inventory = []Inventory{
+	{ID: 1, Name: "Handphone xiaomi", Description: "Redmi note 10 pro"},
+	{ID: 2, Name: "Handphone Iphone", Description: "Iphone 13 pro max"},
+	{ID: 3, Name: "Handphone Samsung", Description: "Galaxy S21"},
+}
+
+func getInventoryByID(w http.ResponseWriter, r *http.Request) {
+	idStr := strings.TrimPrefix(r.URL.Path, "/api/inventory/")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid Inventory ID", http.StatusBadRequest)
+		return
+	}
+
+	for _, p := range inventory {
+		if p.ID == id {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(p)
+			return
+		}
+	}
+
+	http.Error(w, "Inventory belum ada", http.StatusNotFound)
+}
+
+// PUT localhost:8080/api/inventory/{id}
+func updateInventory(w http.ResponseWriter, r *http.Request) {
+
+	// get id dari request
+	idStr := strings.TrimPrefix(r.URL.Path, "/api/inventory/")
+
+	// ganti int
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid Inventory ID", http.StatusBadRequest)
+		return
+	}
+
+	// get data dari request
+	var updateInventory Inventory
+	err = json.NewDecoder(r.Body).Decode(&updateInventory)
+	if err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	// loop inventory, cari id, ganti sesuai data dari request
+	for i := range inventory {
+		if inventory[i].ID == id {
+			updateInventory.ID = id
+			inventory[i] = updateInventory
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(updateInventory)
+			return
+		}
+	}
+	http.Error(w, "Inventory belum ada", http.StatusNotFound)
+}
+
+func deleteInventory(w http.ResponseWriter, r *http.Request) {
+	// get id
+	idStr := strings.TrimPrefix(r.URL.Path, "/api/inventory/")
+
+	// ganti id int
+	id, err := strconv.Atoi(idStr)
+
+	if err != nil {
+		http.Error(w, "Invalid Inventory ID", http.StatusBadRequest)
+		return
+	}
+	// loop inventory cari ID, dapet index yang mau dihapus
+	for i, p := range inventory {
+		if p.ID == id {
+			// bikin slice baru dengan data sebelum dan sesudah index
+			inventory = append(inventory[:i], inventory[i+1:]...)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{
+				"message": "sukses delete",
+			})
+
+			return
+		}
+	}
+
+	http.Error(w, "Inventory belum ada", http.StatusNotFound)
+}
 
 // ubah Config
 type Config struct {
@@ -35,10 +131,6 @@ func main() {
 		DBConn: viper.GetString("DB_CONN"),
 	}
 
-	if config.Port == "" {
-		config.Port = "8080"
-	}
-
 	// Setup database
 	db, err := database.InitDB(config.DBConn)
 	if err != nil {
@@ -46,15 +138,14 @@ func main() {
 	}
 	defer db.Close()
 
-	// GET localhost:8080/api/inventory/{id}
-	// PUT localhost:8080/api/inventory/{id}
-	// DELETE localhost:8080/api/inventory/{id}
-	productRepo := repositories.NewProductRepository(db)
-	productService := services.NewProductService(productRepo)
-	productHandler := handlers.NewProductHandler(productService)
+	// Dependency Injection
+	inventoryRepo := repositories.NewInventoryRepository(db)
+	inventoryService := services.NewInventoryService(inventoryRepo)
+	inventoryHandler := handlers.NewInventoryHandler(inventoryService)
 
-	http.HandleFunc("/api/produk", productHandler.HandleProducts)
-	http.HandleFunc("/api/produk/", productHandler.HandleProductByID)
+	// Setup routes
+	http.HandleFunc("/api/inventory", inventoryHandler.HandleInventories)
+	http.HandleFunc("/api/inventory/", inventoryHandler.HandleInventoryByID)
 
 	// localhost:8080/health
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -64,22 +155,10 @@ func main() {
 			"message": "API Running",
 		})
 	})
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": "Welcome to Kasir API",
-		})
-	})
-
 	fmt.Println("Server running di localhost:" + config.Port)
 
 	err = http.ListenAndServe(":"+config.Port, nil)
 	if err != nil {
-		fmt.Println("gagal running server")
+		fmt.Println("gagal running server:", err)
 	}
 }
